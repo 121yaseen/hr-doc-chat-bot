@@ -2,6 +2,18 @@
 
 A Next.js application that allows users to upload HR documents and query them using natural language.
 
+## Important Production Notes
+
+### File Storage in Production
+
+⚠️ **Important**: The current implementation stores uploaded files in a local `uploads` directory, which won't work on Vercel's read-only filesystem. For production deployment, you need to implement a cloud storage solution like AWS S3, Google Cloud Storage, or similar.
+
+A quick implementation guide:
+1. Sign up for a cloud storage service (AWS S3, Google Cloud Storage, etc.)
+2. Update the file upload API route to upload files to the cloud storage
+3. Update the file deletion logic to delete files from the cloud storage
+4. Update the document processor to read files from the cloud storage
+
 ## Features
 
 - **PDF Upload**: Securely upload PDF documents through a user-friendly interface
