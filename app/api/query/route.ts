@@ -3,6 +3,10 @@ import { queryDocuments } from "@/lib/documentQuery";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { addMessage, getChat, updateChatTitle } from "@/lib/chatActions";
+import { GoogleGenerativeAI } from "@google/generative-ai";
+
+// Initialize the Google Generative AI client
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || "");
 
 export async function POST(request: NextRequest) {
   try {
@@ -42,23 +46,71 @@ export async function POST(request: NextRequest) {
     if (chatId) {
       const chatResult = await getChat(chatId, userId);
 
-      // If this is a new chat (no messages yet), update the title based on the query
-      if (
-        chatResult.success &&
-        chatResult.chat &&
-        chatResult.chat.messages.length === 0
-      ) {
-        // Generate a title from the query (limit to 50 chars for display purposes)
-        const title =
-          query.length > 50 ? query.substring(0, 47) + "..." : query;
-        await updateChatTitle(chatId, userId, title);
-      }
+      if (chatResult.success && chatResult.chat) {
+        const messagesCount = chatResult.chat.messages.length;
 
-      // Save the user's message to the database
-      await addMessage(chatId, {
-        role: "user",
-        content: query,
-      });
+        // If this is a new chat (no messages yet), update the title based on the query
+        if (messagesCount === 0) {
+          // Generate a title from the query (limit to 50 chars for display purposes)
+          const title =
+            query.length > 50 ? query.substring(0, 47) + "..." : query;
+          await updateChatTitle(chatId, userId, title);
+        }
+        // If we have a few messages (5+ messages) and the title is still the first query or "New Chat",
+        // generate a better title using AI
+        else if (
+          messagesCount >= 5 &&
+          (chatResult.chat.title === "New Chat" ||
+            (messagesCount > 0 &&
+              chatResult.chat.messages[0].role === "user" &&
+              chatResult.chat.title === chatResult.chat.messages[0].content))
+        ) {
+          try {
+            // Get the conversation history
+            const conversationHistory = chatResult.chat.messages
+              .map(
+                (msg) =>
+                  `${msg.role === "user" ? "User" : "Assistant"}: ${
+                    msg.content
+                  }`
+              )
+              .join("\n");
+
+            // Use Gemini to generate a concise title
+            const model = genAI.getGenerativeModel({
+              model: "gemini-1.5-flash",
+            });
+            const prompt = `Based on the following conversation, generate a concise, descriptive title (maximum 5 words) that captures the main topic or question being discussed. Don't use quotes in your response.
+
+Conversation:
+${conversationHistory}
+
+Title:`;
+
+            const result = await model.generateContent(prompt);
+            const response = await result.response;
+            const generatedTitle = response.text().trim();
+
+            // Ensure the title isn't too long
+            const finalTitle =
+              generatedTitle.length > 50
+                ? generatedTitle.substring(0, 47) + "..."
+                : generatedTitle;
+
+            // Update the chat title
+            await updateChatTitle(chatId, userId, finalTitle);
+          } catch (error) {
+            console.error("Error generating chat title:", error);
+            // If AI title generation fails, we keep the existing title
+          }
+        }
+
+        // Save the user's message to the database
+        await addMessage(chatId, {
+          role: "user",
+          content: query,
+        });
+      }
     }
 
     // Query the documents
