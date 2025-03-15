@@ -5,6 +5,9 @@ import { authOptions } from "@/lib/auth";
 import { addMessage, getChat, updateChatTitle } from "@/lib/chatActions";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 
+// Add route segment config to mark this route as dynamic
+export const dynamic = "force-dynamic";
+
 // Initialize the Google Generative AI client
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || "");
 

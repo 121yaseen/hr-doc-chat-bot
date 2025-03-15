@@ -3,6 +3,9 @@ import { getDocuments } from "@/lib/documentStore";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 
+// Add route segment config to mark this route as dynamic
+export const dynamic = "force-dynamic";
+
 export async function GET() {
   try {
     // Get the user session

@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { getDocument, updateDocumentStatus } from "@/lib/documentStore";
 import { reprocessDocument } from "@/lib/documentProcessor";
 
+// Add route segment config to mark this route as dynamic
+export const dynamic = "force-dynamic";
+
 export async function POST(
   request: NextRequest,
   { params }: { params: { id: string } }
