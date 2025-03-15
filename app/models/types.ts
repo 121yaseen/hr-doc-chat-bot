@@ -6,7 +6,7 @@ export type PdfDocument = {
   filename: string;
   path?: string; // Optional for database storage
   fileContent?: Buffer | Uint8Array; // File content for database storage
-  contentType?: string; // MIME type of the file
+  contentType: string; // MIME type of the file (required)
   uploadDate: string;
   status: "processing" | "indexed" | "failed";
   size: number;

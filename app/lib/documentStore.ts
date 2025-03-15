@@ -11,6 +11,11 @@ const prisma = new PrismaClient();
  */
 export async function addDocument(document: PdfDocument): Promise<PdfDocument> {
   try {
+    // Ensure fileContent is not undefined
+    if (!document.fileContent) {
+      throw new Error("File content is required");
+    }
+
     // Create a new document in the database
     const dbDocument = await prisma.document.create({
       data: {
@@ -18,7 +23,7 @@ export async function addDocument(document: PdfDocument): Promise<PdfDocument> {
         userId: document.userId,
         filename: document.filename,
         fileContent: document.fileContent, // This should be a Buffer
-        contentType: document.contentType,
+        contentType: document.contentType || "application/octet-stream", // Default content type if not provided
         uploadDate: new Date(document.uploadDate),
         status: document.status,
         size: document.size,
