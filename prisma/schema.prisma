@@ -43,14 +43,15 @@ model Session {
 }
 
 model User {
-  id            String    @id @default(cuid())
+  id            String     @id @default(cuid())
   name          String?
-  email         String?   @unique
+  email         String?    @unique
   emailVerified DateTime?
   image         String?
   accounts      Account[]
   sessions      Session[]
   chats         Chat[]
+  documents     Document[]
 }
 
 model VerificationToken {
@@ -79,4 +80,28 @@ model Message {
   content   String
   createdAt DateTime @default(now())
   chat      Chat     @relation(fields: [chatId], references: [id], onDelete: Cascade)
+}
+
+// Document Models
+model Document {
+  id          String        @id @default(cuid())
+  userId      String
+  filename    String
+  fileContent Bytes // Store the file content directly in the database
+  contentType String // MIME type of the file
+  uploadDate  DateTime      @default(now())
+  status      String // "processing" | "indexed" | "failed"
+  size        Int
+  user        User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  vectors     VectorStore[]
+}
+
+// Vector Store Model
+model VectorStore {
+  id           String   @id @default(cuid())
+  documentId   String
+  documentName String
+  text         String   @db.Text
+  embedding    Float[] // Store the embedding as an array of floats
+  document     Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
 }

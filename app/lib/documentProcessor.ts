@@ -2,10 +2,8 @@
 
 import { updateDocumentStatus, getDocument } from "./documentStore";
 import { indexDocument } from "./vectorStore";
-import { readFile } from "fs/promises";
 import { PdfDocument } from "@/models/types";
-import { join, extname } from "path";
-import { PythonShell } from "python-shell";
+import { extname } from "path";
 import mammoth from "mammoth";
 
 /**
@@ -19,15 +17,21 @@ export async function processDocument(document: PdfDocument): Promise<boolean> {
     await updateDocumentStatus(document.id, "processing");
 
     // Determine file type and extract text accordingly
-    const fileExtension = extname(document.path).toLowerCase();
+    const fileExtension = extname(document.filename).toLowerCase();
     let text = "";
 
+    if (!document.fileContent) {
+      console.error(`No file content available for document: ${document.id}`);
+      await updateDocumentStatus(document.id, "failed");
+      return false;
+    }
+
     if (fileExtension === ".pdf") {
-      // Extract text from PDF
-      text = await extractTextFromPdfWithPlumber(document.path);
+      // Extract text from PDF buffer
+      text = await extractTextFromPdfBuffer(document.fileContent);
     } else if (fileExtension === ".docx") {
-      // Extract text from DOCX
-      text = await extractTextFromDocx(document.path);
+      // Extract text from DOCX buffer
+      text = await extractTextFromDocxBuffer(document.fileContent);
     } else {
       console.error(
         `Unsupported file type: ${fileExtension} for document: ${document.id}`
@@ -78,77 +82,43 @@ export async function processDocument(document: PdfDocument): Promise<boolean> {
 }
 
 /**
- * Extract text from a PDF file using pdfplumber via Python
+ * Extract text from a PDF buffer
  */
-async function extractTextFromPdfWithPlumber(
-  filePath: string
+async function extractTextFromPdfBuffer(
+  buffer: Buffer | Uint8Array
 ): Promise<string> {
   try {
-    console.log(
-      `Attempting to extract text from PDF with pdfplumber: ${filePath}`
-    );
+    console.log(`Attempting to extract text from PDF buffer`);
 
-    // Set up Python shell options
-    const options = {
-      mode: "json" as const,
-      pythonPath: join(process.cwd(), "pdf_env/bin/python"),
-      scriptPath: join(process.cwd(), "scripts"),
-      args: [filePath],
-    };
+    // For Vercel deployment, we can't use Python scripts
+    // Instead, we'll use a simple text extraction approach
+    const text = buffer.toString("utf-8");
+    const textContent = text.replace(/[^\x20-\x7E\n]/g, " ").trim();
 
-    // Run the Python script
-    const results = await PythonShell.run("extract_pdf_text.py", options);
-
-    // Parse the result
-    if (results && results.length > 0) {
-      const result = results[0];
-
-      if (result.success) {
-        console.log(
-          `Successfully extracted ${result.text.length} characters from PDF`
-        );
-        return result.text;
-      } else {
-        console.error("Error in Python PDF extraction:", result.error);
-        console.error("Traceback:", result.traceback);
-        throw new Error(`Python PDF extraction failed: ${result.error}`);
-      }
+    if (textContent.length > 0) {
+      return textContent;
     }
 
-    throw new Error("No results returned from Python PDF extraction");
+    throw new Error("Failed to extract text from PDF buffer");
   } catch (error) {
-    console.error(`Error extracting text from PDF with pdfplumber:`, error);
-
-    // Fallback to a simple extraction method if Python fails
-    try {
-      console.log("Attempting fallback extraction method...");
-      const dataBuffer = await readFile(filePath);
-      const text = dataBuffer.toString("utf-8");
-      const textContent = text.replace(/[^\x20-\x7E\n]/g, " ").trim();
-
-      if (textContent.length > 0) {
-        return textContent;
-      }
-    } catch (fallbackError) {
-      console.error("Fallback extraction also failed:", fallbackError);
-    }
-
+    console.error(`Error extracting text from PDF buffer:`, error);
     throw error;
   }
 }
 
 /**
- * Extract text from a DOCX file using mammoth
+ * Extract text from a DOCX buffer
  */
-async function extractTextFromDocx(filePath: string): Promise<string> {
+async function extractTextFromDocxBuffer(
+  buffer: Buffer | Uint8Array
+): Promise<string> {
   try {
-    console.log(`Attempting to extract text from DOCX: ${filePath}`);
-
-    // Read the file
-    const buffer = await readFile(filePath);
+    console.log(`Attempting to extract text from DOCX buffer`);
 
     // Extract text using mammoth
-    const result = await mammoth.extractRawText({ buffer });
+    const result = await mammoth.extractRawText({
+      buffer: buffer as Buffer,
+    });
 
     if (result && result.value) {
       console.log(

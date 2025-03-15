@@ -1,22 +1,15 @@
 "use server";
 
 import { GoogleGenerativeAI } from "@google/generative-ai";
-import { join } from "path";
-import { writeFile, readFile, mkdir } from "fs/promises";
-import { existsSync } from "fs";
+import { PrismaClient } from "@prisma/client";
 
 // Initialize the Google Generative AI client for embeddings
 const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY || "");
 
-// Path to store the vector database
-const METADATA_PATH = join(process.cwd(), "data", "metadata.json");
+// Initialize Prisma client
+const prisma = new PrismaClient();
 
-// Ensure data directory exists
-async function ensureDataDir() {
-  await mkdir(join(process.cwd(), "data"), { recursive: true });
-}
-
-// Simple in-memory vector store instead of FAISS
+// Simple in-memory vector store for caching
 type VectorDocument = {
   id: string;
   documentId: string;
@@ -25,27 +18,31 @@ type VectorDocument = {
   embedding: number[];
 };
 
-// In-memory storage
-let vectorStore: VectorDocument[] = [];
+// In-memory cache
+let vectorCache: VectorDocument[] = [];
 let isInitialized = false;
 
-// Load the vector database and metadata if they exist
+// Initialize the vector store
 async function initVectorStore() {
   if (isInitialized) return;
 
   try {
-    await ensureDataDir();
+    // Load vectors from database
+    const dbVectors = await prisma.vectorStore.findMany();
 
-    // Load metadata if it exists
-    if (existsSync(METADATA_PATH)) {
-      const metadataContent = await readFile(METADATA_PATH, "utf-8");
-      const data = JSON.parse(metadataContent);
-      vectorStore = data.documents || [];
-    }
+    // Convert to our internal format
+    vectorCache = dbVectors.map((vector) => ({
+      id: vector.id,
+      documentId: vector.documentId,
+      documentName: vector.documentName,
+      text: vector.text,
+      embedding: vector.embedding,
+    }));
+
     isInitialized = true;
   } catch (error) {
     console.error("Error initializing vector store:", error);
-    vectorStore = [];
+    vectorCache = [];
     isInitialized = true;
   }
 }
@@ -108,38 +105,27 @@ export async function indexDocument(document: {
     // Generate embedding for the document
     const embedding = await generateEmbedding(document.text);
 
-    // Store document with embedding
-    vectorStore.push({
-      id: document.id,
-      documentId: document.documentId,
-      documentName: document.metadata.filename,
-      text: document.text,
-      embedding: embedding,
+    // Store in database
+    const dbVector = await prisma.vectorStore.create({
+      data: {
+        documentId: document.documentId,
+        documentName: document.metadata.filename,
+        text: document.text,
+        embedding: embedding,
+      },
     });
 
-    // Save to disk
-    await saveVectorStore();
+    // Update cache
+    vectorCache.push({
+      id: dbVector.id,
+      documentId: dbVector.documentId,
+      documentName: dbVector.documentName,
+      text: dbVector.text,
+      embedding: dbVector.embedding,
+    });
   } catch (error) {
     console.error("Error indexing document:", error);
     throw new Error("Failed to index document");
-  }
-}
-
-/**
- * Save the vector store to disk
- */
-async function saveVectorStore(): Promise<void> {
-  try {
-    await ensureDataDir();
-
-    // Save the metadata and embeddings
-    await writeFile(
-      METADATA_PATH,
-      JSON.stringify({ documents: vectorStore }, null, 2)
-    );
-  } catch (error) {
-    console.error("Error saving vector store:", error);
-    throw new Error("Failed to save vector store");
   }
 }
 
@@ -161,7 +147,7 @@ export async function searchVectorStore(
     await initVectorStore();
 
     // If the vector store is empty, return empty results
-    if (vectorStore.length === 0) {
+    if (vectorCache.length === 0) {
       return [];
     }
 
@@ -169,7 +155,7 @@ export async function searchVectorStore(
     const queryEmbedding = await generateEmbedding(query);
 
     // Calculate similarity scores
-    const results = vectorStore.map((doc) => ({
+    const results = vectorCache.map((doc) => ({
       documentId: doc.documentId,
       documentName: doc.documentName,
       text: doc.text,

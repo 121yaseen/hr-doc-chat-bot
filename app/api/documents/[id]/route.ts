@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { deleteDocument } from "@/lib/documentStore";
-import { unlink } from "fs/promises";
-import { join } from "path";
+import { deleteDocument, getDocument } from "@/lib/documentStore";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
 
 // Add route segment config to mark this route as dynamic
 export const dynamic = "force-dynamic";
@@ -11,6 +11,17 @@ export async function DELETE(
   { params }: { params: { id: string } }
 ) {
   try {
+    // Get the user session
+    const session = await getServerSession(authOptions);
+
+    // Check if user is authenticated
+    if (!session || !session.user) {
+      return NextResponse.json(
+        { error: "Authentication required" },
+        { status: 401 }
+      );
+    }
+
     const { id } = params;
 
     if (!id) {
@@ -20,9 +31,8 @@ export async function DELETE(
       );
     }
 
-    // Get document details before deletion
-    const document = await deleteDocument(id);
-
+    // Check if document exists and belongs to the user
+    const document = await getDocument(id);
     if (!document) {
       return NextResponse.json(
         { error: "Document not found" },
@@ -30,13 +40,17 @@ export async function DELETE(
       );
     }
 
-    // Delete the physical file
-    try {
-      await unlink(join(process.cwd(), "uploads", `${id}.pdf`));
-    } catch (fileError) {
-      console.error(`Error deleting file for document ${id}:`, fileError);
-      // Continue even if file deletion fails
+    // Verify document belongs to the user
+    const userId = session.user.id as string;
+    if (document.userId !== userId) {
+      return NextResponse.json(
+        { error: "You don't have permission to delete this document" },
+        { status: 403 }
+      );
     }
+
+    // Delete the document from the database
+    await deleteDocument(id);
 
     return NextResponse.json({
       message: "Document deleted successfully",

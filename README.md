@@ -6,9 +6,19 @@ A Next.js application that allows users to upload HR documents and query them us
 
 ### File Storage in Production
 
-⚠️ **Important**: The current implementation stores uploaded files in a local `uploads` directory, which won't work on Vercel's read-only filesystem. For production deployment, you need to implement a cloud storage solution like AWS S3, Google Cloud Storage, or similar.
+✅ **Update**: The application now stores uploaded files directly in the database instead of using a local filesystem. This makes it compatible with Vercel's read-only filesystem and eliminates the need for a separate cloud storage solution.
 
-A quick implementation guide:
+Key changes:
+1. Files are stored as binary data in the PostgreSQL database
+2. Document processing works directly with the file content from the database
+3. Vector embeddings are stored in the database for efficient searching
+
+⚠️ **Important**: You must update your `.env` file to use a PostgreSQL database:
+```
+DATABASE_URL="postgresql://username:password@hostname:port/database"
+```
+
+If you prefer to use cloud storage instead of database storage for large files:
 1. Sign up for a cloud storage service (AWS S3, Google Cloud Storage, etc.)
 2. Update the file upload API route to upload files to the cloud storage
 3. Update the file deletion logic to delete files from the cloud storage
@@ -26,10 +36,10 @@ A quick implementation guide:
 
 - **Frontend**: Next.js, React, TailwindCSS
 - **PDF Processing**: PDF.js
-- **Vector Database**: Simple vector store for efficient similarity search
+- **Vector Database**: PostgreSQL with vector storage for efficient similarity search
 - **AI**: Google's Gemini model for generating responses and embeddings
 - **Authentication**: NextAuth.js with Prisma adapter
-- **Database**: SQLite (development), PostgreSQL (production)
+- **Database**: PostgreSQL (both development and production)
 
 ## Getting Started
 
@@ -135,8 +145,8 @@ After deploying, you need to run migrations on your production database:
 
 ## Security Considerations
 
-- The application stores uploaded documents locally in the `uploads` directory.
-- Document processing happens on the server, and the extracted text is stored in a vector database.
+- The application stores uploaded documents directly in the database as binary data.
+- Document processing happens on the server, and the extracted text is stored in the database.
 - Authentication is implemented using NextAuth.js.
 
 ## Troubleshooting Vercel Deployment

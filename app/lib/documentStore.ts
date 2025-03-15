@@ -1,91 +1,96 @@
-import { join } from "path";
-import { readFile, writeFile, mkdir } from "fs/promises";
-import { existsSync } from "fs";
+"use server";
+
 import { PdfDocument } from "@/models/types";
+import { PrismaClient } from "@prisma/client";
 
-// Path to store document metadata
-const DOCUMENTS_PATH = join(process.cwd(), "data", "documents.json");
+// Initialize Prisma client
+const prisma = new PrismaClient();
 
-// In-memory cache of documents
-let documents: PdfDocument[] = [];
-
-// Ensure data directory exists
-async function ensureDataDir() {
-  await mkdir(join(process.cwd(), "data"), { recursive: true });
-}
-
-// Load documents from disk
-async function loadDocuments(): Promise<PdfDocument[]> {
+/**
+ * Add a document to the database
+ */
+export async function addDocument(document: PdfDocument): Promise<PdfDocument> {
   try {
-    await ensureDataDir();
+    // Create a new document in the database
+    const dbDocument = await prisma.document.create({
+      data: {
+        id: document.id,
+        userId: document.userId,
+        filename: document.filename,
+        fileContent: document.fileContent, // This should be a Buffer
+        contentType: document.contentType,
+        uploadDate: new Date(document.uploadDate),
+        status: document.status,
+        size: document.size,
+      },
+    });
 
-    if (existsSync(DOCUMENTS_PATH)) {
-      const data = await readFile(DOCUMENTS_PATH, "utf-8");
-      return JSON.parse(data);
-    }
-
-    return [];
+    return {
+      id: dbDocument.id,
+      userId: dbDocument.userId,
+      filename: dbDocument.filename,
+      fileContent: dbDocument.fileContent,
+      contentType: dbDocument.contentType,
+      uploadDate: dbDocument.uploadDate.toISOString(),
+      status: dbDocument.status as "processing" | "indexed" | "failed",
+      size: dbDocument.size,
+    };
   } catch (error) {
-    console.error("Error loading documents:", error);
-    return [];
+    console.error("Error adding document:", error);
+    throw new Error("Failed to add document");
   }
 }
-
-// Save documents to disk
-async function saveDocuments(): Promise<void> {
-  try {
-    await ensureDataDir();
-    await writeFile(DOCUMENTS_PATH, JSON.stringify(documents, null, 2));
-  } catch (error) {
-    console.error("Error saving documents:", error);
-  }
-}
-
-// Initialize documents
-async function initDocuments() {
-  documents = await loadDocuments();
-}
-
-// Initialize on module load
-initDocuments().catch(console.error);
 
 /**
  * Get all documents
  */
 export async function getDocuments(): Promise<PdfDocument[]> {
-  // Ensure documents are loaded
-  if (documents.length === 0) {
-    documents = await loadDocuments();
-  }
+  try {
+    const dbDocuments = await prisma.document.findMany();
 
-  return documents;
+    return dbDocuments.map((doc) => ({
+      id: doc.id,
+      userId: doc.userId,
+      filename: doc.filename,
+      fileContent: doc.fileContent,
+      contentType: doc.contentType,
+      uploadDate: doc.uploadDate.toISOString(),
+      status: doc.status as "processing" | "indexed" | "failed",
+      size: doc.size,
+    }));
+  } catch (error) {
+    console.error("Error getting documents:", error);
+    return [];
+  }
 }
 
 /**
  * Get a document by ID
  */
 export async function getDocument(id: string): Promise<PdfDocument | null> {
-  // Ensure documents are loaded
-  if (documents.length === 0) {
-    documents = await loadDocuments();
+  try {
+    const dbDocument = await prisma.document.findUnique({
+      where: { id },
+    });
+
+    if (!dbDocument) {
+      return null;
+    }
+
+    return {
+      id: dbDocument.id,
+      userId: dbDocument.userId,
+      filename: dbDocument.filename,
+      fileContent: dbDocument.fileContent,
+      contentType: dbDocument.contentType,
+      uploadDate: dbDocument.uploadDate.toISOString(),
+      status: dbDocument.status as "processing" | "indexed" | "failed",
+      size: dbDocument.size,
+    };
+  } catch (error) {
+    console.error(`Error getting document ${id}:`, error);
+    return null;
   }
-
-  return documents.find((doc) => doc.id === id) || null;
-}
-
-/**
- * Add a new document
- */
-export async function addDocument(document: PdfDocument): Promise<PdfDocument> {
-  // Ensure documents are loaded
-  if (documents.length === 0) {
-    documents = await loadDocuments();
-  }
-
-  documents.push(document);
-  await saveDocuments();
-
-  return document;
 }
 
 /**
@@ -95,41 +100,48 @@ export async function updateDocumentStatus(
   id: string,
   status: "processing" | "indexed" | "failed"
 ): Promise<PdfDocument | null> {
-  // Ensure documents are loaded
-  if (documents.length === 0) {
-    documents = await loadDocuments();
-  }
+  try {
+    const dbDocument = await prisma.document.update({
+      where: { id },
+      data: { status },
+    });
 
-  const document = documents.find((doc) => doc.id === id);
-
-  if (!document) {
+    return {
+      id: dbDocument.id,
+      userId: dbDocument.userId,
+      filename: dbDocument.filename,
+      fileContent: dbDocument.fileContent,
+      contentType: dbDocument.contentType,
+      uploadDate: dbDocument.uploadDate.toISOString(),
+      status: dbDocument.status as "processing" | "indexed" | "failed",
+      size: dbDocument.size,
+    };
+  } catch (error) {
+    console.error(`Error updating document status ${id}:`, error);
     return null;
   }
-
-  document.status = status;
-  await saveDocuments();
-
-  return document;
 }
 
 /**
  * Delete a document
  */
 export async function deleteDocument(id: string): Promise<PdfDocument | null> {
-  // Ensure documents are loaded
-  if (documents.length === 0) {
-    documents = await loadDocuments();
-  }
+  try {
+    // Get the document before deleting it
+    const document = await getDocument(id);
 
-  const index = documents.findIndex((doc) => doc.id === id);
+    if (!document) {
+      return null;
+    }
 
-  if (index === -1) {
+    // Delete the document from the database
+    await prisma.document.delete({
+      where: { id },
+    });
+
+    return document;
+  } catch (error) {
+    console.error(`Error deleting document ${id}:`, error);
     return null;
   }
-
-  const document = documents[index];
-  documents.splice(index, 1);
-  await saveDocuments();
-
-  return document;
 }
