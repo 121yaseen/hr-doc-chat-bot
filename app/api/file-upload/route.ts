@@ -6,6 +6,7 @@ import { addDocument, updateDocumentStatus } from "@/lib/documentStore";
 import { PdfDocument } from "@/models/types";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
+import { put } from "@vercel/blob";
 
 // Add route segment config to mark this route as dynamic
 export const dynamic = "force-dynamic";
@@ -62,20 +63,30 @@ export async function POST(request: NextRequest) {
     const fileId = uuidv4();
     const fileName = file.name;
 
-    // Convert file to buffer
+    // Upload file to Vercel Blob Storage
+    const blob = await put(`documents/${fileId}${fileExtension}`, file, {
+      access: "public",
+      contentType: file.type,
+    });
+
+    console.log(`File uploaded to Blob Storage: ${blob.url}`);
+
+    // Convert file to buffer for processing
     const bytes = await file.arrayBuffer();
     const buffer = Buffer.from(bytes);
 
-    // Store file metadata and content in database
+    // Store file metadata in database
     const documentData: PdfDocument = {
       id: fileId,
       filename: fileName,
-      fileContent: buffer,
+      blobUrl: blob.url,
       contentType: file.type,
       uploadDate: new Date().toISOString(),
       status: "processing",
       size: buffer.length,
       userId: session.user.id as string,
+      // Include fileContent for document processing
+      fileContent: buffer,
     };
 
     // Save file metadata to database

@@ -87,7 +87,7 @@ model Document {
   id          String        @id @default(cuid())
   userId      String
   filename    String
-  fileContent Bytes // Store the file content directly in the database
+  blobUrl     String // URL to the file in Vercel Blob Storage
   contentType String // MIME type of the file
   uploadDate  DateTime      @default(now())
   status      String // "processing" | "indexed" | "failed"

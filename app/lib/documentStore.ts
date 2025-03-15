@@ -2,6 +2,7 @@
 
 import { PdfDocument } from "@/models/types";
 import { PrismaClient } from "@prisma/client";
+import { del } from "@vercel/blob";
 
 // Initialize Prisma client
 const prisma = new PrismaClient();
@@ -11,9 +12,9 @@ const prisma = new PrismaClient();
  */
 export async function addDocument(document: PdfDocument): Promise<PdfDocument> {
   try {
-    // Ensure fileContent is not undefined
-    if (!document.fileContent) {
-      throw new Error("File content is required");
+    // Ensure blobUrl is provided
+    if (!document.blobUrl) {
+      throw new Error("Blob URL is required");
     }
 
     // Create a new document in the database
@@ -22,7 +23,7 @@ export async function addDocument(document: PdfDocument): Promise<PdfDocument> {
         id: document.id,
         userId: document.userId,
         filename: document.filename,
-        fileContent: document.fileContent, // This should be a Buffer
+        blobUrl: document.blobUrl,
         contentType: document.contentType || "application/octet-stream", // Default content type if not provided
         uploadDate: new Date(document.uploadDate),
         status: document.status,
@@ -34,11 +35,13 @@ export async function addDocument(document: PdfDocument): Promise<PdfDocument> {
       id: dbDocument.id,
       userId: dbDocument.userId,
       filename: dbDocument.filename,
-      fileContent: dbDocument.fileContent,
+      blobUrl: dbDocument.blobUrl,
       contentType: dbDocument.contentType,
       uploadDate: dbDocument.uploadDate.toISOString(),
       status: dbDocument.status as "processing" | "indexed" | "failed",
       size: dbDocument.size,
+      // Include the fileContent if it was provided in the original document
+      fileContent: document.fileContent,
     };
   } catch (error) {
     console.error("Error adding document:", error);
@@ -57,7 +60,7 @@ export async function getDocuments(): Promise<PdfDocument[]> {
       id: doc.id,
       userId: doc.userId,
       filename: doc.filename,
-      fileContent: doc.fileContent,
+      blobUrl: doc.blobUrl,
       contentType: doc.contentType,
       uploadDate: doc.uploadDate.toISOString(),
       status: doc.status as "processing" | "indexed" | "failed",
@@ -86,7 +89,7 @@ export async function getDocument(id: string): Promise<PdfDocument | null> {
       id: dbDocument.id,
       userId: dbDocument.userId,
       filename: dbDocument.filename,
-      fileContent: dbDocument.fileContent,
+      blobUrl: dbDocument.blobUrl,
       contentType: dbDocument.contentType,
       uploadDate: dbDocument.uploadDate.toISOString(),
       status: dbDocument.status as "processing" | "indexed" | "failed",
@@ -115,7 +118,7 @@ export async function updateDocumentStatus(
       id: dbDocument.id,
       userId: dbDocument.userId,
       filename: dbDocument.filename,
-      fileContent: dbDocument.fileContent,
+      blobUrl: dbDocument.blobUrl,
       contentType: dbDocument.contentType,
       uploadDate: dbDocument.uploadDate.toISOString(),
       status: dbDocument.status as "processing" | "indexed" | "failed",
@@ -143,6 +146,20 @@ export async function deleteDocument(id: string): Promise<PdfDocument | null> {
     await prisma.document.delete({
       where: { id },
     });
+
+    // Delete the file from Vercel Blob Storage if blobUrl exists
+    if (document.blobUrl) {
+      try {
+        await del(document.blobUrl);
+        console.log(`Deleted file from Blob Storage: ${document.blobUrl}`);
+      } catch (blobError) {
+        console.error(
+          `Error deleting file from Blob Storage: ${document.blobUrl}`,
+          blobError
+        );
+        // Continue even if blob deletion fails
+      }
+    }
 
     return document;
   } catch (error) {

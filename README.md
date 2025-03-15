@@ -6,12 +6,26 @@ A Next.js application that allows users to upload HR documents and query them us
 
 ### File Storage in Production
 
-✅ **Update**: The application now stores uploaded files directly in the database instead of using a local filesystem. This makes it compatible with Vercel's read-only filesystem and eliminates the need for a separate cloud storage solution.
+✅ **Update**: The application now uses Vercel Blob Storage for storing uploaded files. This makes it compatible with Vercel's read-only filesystem and provides a scalable solution for file storage.
 
 Key changes:
-1. Files are stored as binary data in the PostgreSQL database
-2. Document processing works directly with the file content from the database
-3. Vector embeddings are stored in the database for efficient searching
+1. Files are uploaded to Vercel Blob Storage
+2. File URLs are stored in the PostgreSQL database
+3. Document processing fetches files from Blob Storage when needed
+4. Vector embeddings are stored in the database for efficient searching
+
+⚠️ **Important**: You must set up Vercel Blob Storage and add the `BLOB_READ_WRITE_TOKEN` to your environment variables:
+
+1. Create a Blob Store in your Vercel dashboard:
+   - Go to your Vercel dashboard
+   - Select your project
+   - Go to Storage > Blob
+   - Click "Create Blob Store"
+
+2. Add the `BLOB_READ_WRITE_TOKEN` to your environment variables:
+   ```
+   BLOB_READ_WRITE_TOKEN="your-vercel-blob-read-write-token"
+   ```
 
 ⚠️ **Important**: You must update your `.env` file to use a PostgreSQL database:
 ```

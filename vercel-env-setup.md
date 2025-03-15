@@ -20,13 +20,20 @@ The error you're seeing is because your `DATABASE_URL` environment variable on V
    postgresql://myuser:mypassword@db.example.com:5432/mydb
    ```
 
-5. **Save your changes**
-6. **Redeploy your application**
+## Setting Up Vercel Blob Storage
 
-   After updating the environment variable, you need to redeploy your application for the changes to take effect. You can do this by:
-   - Going to the "Deployments" tab
-   - Clicking on the "..." menu next to your latest deployment
-   - Selecting "Redeploy"
+The application now uses Vercel Blob Storage for storing uploaded files. Here's how to set it up:
+
+1. **Create a Blob Store in your Vercel dashboard**:
+   - Go to your Vercel dashboard
+   - Select your project
+   - Go to Storage > Blob
+   - Click "Create Blob Store"
+
+2. **Add the `BLOB_READ_WRITE_TOKEN` to your environment variables**:
+   - After creating the Blob Store, you'll get a read-write token
+   - Go to Settings > Environment Variables
+   - Add a new variable named `BLOB_READ_WRITE_TOKEN` with the value of your token
 
 ## Other Required Environment Variables
 
@@ -37,6 +44,7 @@ Make sure you have all these environment variables set in your Vercel project:
 - `NEXTAUTH_URL`: Your production URL (e.g., `https://your-app.vercel.app`)
 - `GOOGLE_API_KEY`: Your Google API key for Gemini AI
 - `GEMINI_API_KEY`: Your Gemini API key (if different from GOOGLE_API_KEY)
+- `BLOB_READ_WRITE_TOKEN`: Your Vercel Blob Storage read-write token
 
 ## Creating a PostgreSQL Database
 
@@ -74,4 +82,14 @@ vercel env pull .env.production
 npx prisma migrate deploy
 ```
 
-This will create all the necessary tables in your PostgreSQL database. 
+This will create all the necessary tables in your PostgreSQL database.
+
+## Redeploying Your Application
+
+After updating all the environment variables, you need to redeploy your application:
+
+1. **Go to the "Deployments" tab**
+2. **Click on the "..." menu next to your latest deployment**
+3. **Select "Redeploy"**
+
+This will rebuild your application with the new environment variables and configuration. 

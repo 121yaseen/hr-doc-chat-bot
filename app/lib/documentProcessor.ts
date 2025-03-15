@@ -20,21 +20,57 @@ export async function processDocument(document: PdfDocument): Promise<boolean> {
     const fileExtension = extname(document.filename).toLowerCase();
     let text = "";
 
-    if (!document.fileContent) {
-      console.error(`No file content available for document: ${document.id}`);
-      await updateDocumentStatus(document.id, "failed");
-      return false;
+    // If fileContent is provided directly, use it
+    if (document.fileContent) {
+      if (fileExtension === ".pdf") {
+        // Extract text from PDF buffer
+        text = await extractTextFromPdfBuffer(
+          Buffer.from(document.fileContent)
+        );
+      } else if (fileExtension === ".docx") {
+        // Extract text from DOCX buffer
+        text = await extractTextFromDocxBuffer(
+          Buffer.from(document.fileContent)
+        );
+      } else {
+        console.error(
+          `Unsupported file type: ${fileExtension} for document: ${document.id}`
+        );
+        await updateDocumentStatus(document.id, "failed");
+        return false;
+      }
     }
+    // Otherwise, fetch from blob URL
+    else if (document.blobUrl) {
+      // Fetch the file from the blob URL
+      const response = await fetch(document.blobUrl);
+      if (!response.ok) {
+        console.error(
+          `Failed to fetch document from blob storage: ${document.blobUrl}`
+        );
+        await updateDocumentStatus(document.id, "failed");
+        return false;
+      }
 
-    if (fileExtension === ".pdf") {
-      // Extract text from PDF buffer
-      text = await extractTextFromPdfBuffer(document.fileContent);
-    } else if (fileExtension === ".docx") {
-      // Extract text from DOCX buffer
-      text = await extractTextFromDocxBuffer(document.fileContent);
+      const buffer = await response.arrayBuffer();
+      const fileBuffer = Buffer.from(buffer);
+
+      if (fileExtension === ".pdf") {
+        // Extract text from PDF buffer
+        text = await extractTextFromPdfBuffer(fileBuffer);
+      } else if (fileExtension === ".docx") {
+        // Extract text from DOCX buffer
+        text = await extractTextFromDocxBuffer(fileBuffer);
+      } else {
+        console.error(
+          `Unsupported file type: ${fileExtension} for document: ${document.id}`
+        );
+        await updateDocumentStatus(document.id, "failed");
+        return false;
+      }
     } else {
       console.error(
-        `Unsupported file type: ${fileExtension} for document: ${document.id}`
+        `No file content or blob URL available for document: ${document.id}`
       );
       await updateDocumentStatus(document.id, "failed");
       return false;
@@ -84,9 +120,7 @@ export async function processDocument(document: PdfDocument): Promise<boolean> {
 /**
  * Extract text from a PDF buffer
  */
-async function extractTextFromPdfBuffer(
-  buffer: Buffer | Uint8Array
-): Promise<string> {
+async function extractTextFromPdfBuffer(buffer: Buffer): Promise<string> {
   try {
     console.log(`Attempting to extract text from PDF buffer`);
 
@@ -109,9 +143,7 @@ async function extractTextFromPdfBuffer(
 /**
  * Extract text from a DOCX buffer
  */
-async function extractTextFromDocxBuffer(
-  buffer: Buffer | Uint8Array
-): Promise<string> {
+async function extractTextFromDocxBuffer(buffer: Buffer): Promise<string> {
   try {
     console.log(`Attempting to extract text from DOCX buffer`);
 
