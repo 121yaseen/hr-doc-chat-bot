@@ -115,7 +115,7 @@ export default function ChatSidebar() {
 
     // Clean up the interval when the component unmounts
     return () => clearInterval(intervalId);
-  }, [user, isLoading]);
+  }, [user, isLoading, activeChatId]); // Added activeChatId as a dependency
 
   // Create a new chat
   const handleNewChat = async () => {
