@@ -8,9 +8,6 @@ import { join, extname } from "path";
 import { PythonShell } from "python-shell";
 import mammoth from "mammoth";
 
-// Maximum number of chunks to process at once to avoid memory issues
-const MAX_CHUNKS = 50;
-
 /**
  * Process a document by extracting text and indexing it
  */
@@ -165,57 +162,6 @@ async function extractTextFromDocx(filePath: string): Promise<string> {
     console.error(`Error extracting text from DOCX:`, error);
     throw error;
   }
-}
-
-/**
- * Split text into chunks for indexing
- */
-function splitTextIntoChunks(
-  text: string,
-  chunkSize = 1000,
-  overlap = 200
-): string[] {
-  if (!text || text.length <= chunkSize) {
-    return [text];
-  }
-
-  const chunks: string[] = [];
-  let startIndex = 0;
-
-  while (startIndex < text.length) {
-    let endIndex = Math.min(startIndex + chunkSize, text.length);
-
-    // Try to find a sentence boundary to end the chunk
-    if (endIndex < text.length) {
-      // Look for sentence endings (.!?) followed by a space or newline
-      const sentenceEndMatch = text
-        .substring(endIndex - 100, endIndex + 100)
-        .match(/[.!?]\s+/);
-
-      if (sentenceEndMatch && sentenceEndMatch.index !== undefined) {
-        // Adjust the end index to the sentence boundary
-        endIndex = endIndex - 100 + sentenceEndMatch.index + 1;
-      } else {
-        // If no sentence boundary, look for a space
-        const lastSpace = text.lastIndexOf(" ", endIndex);
-        if (lastSpace > startIndex) {
-          endIndex = lastSpace;
-        }
-      }
-    }
-
-    chunks.push(text.substring(startIndex, endIndex).trim());
-
-    // Move the start index for the next chunk, accounting for overlap
-    startIndex = endIndex - overlap;
-
-    // Ensure we're making progress
-    if (startIndex <= 0 || startIndex >= text.length - 10) {
-      break;
-    }
-  }
-
-  return chunks;
 }
 
 /**

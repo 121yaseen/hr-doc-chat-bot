@@ -82,7 +82,7 @@ export async function queryDocuments(query: string): Promise<QueryResult> {
     if (USE_AI_MODEL) {
       // Try to generate answer using Google's Gemini model
       try {
-        answer = await generateAnswer(query, context, resultsToUse);
+        answer = await generateAnswer(query, context);
       } catch (error) {
         console.error(
           "Error using AI model, falling back to simple implementation:",
@@ -156,16 +156,7 @@ ${
 /**
  * Generate an answer using Google's Gemini model
  */
-async function generateAnswer(
-  query: string,
-  context: string,
-  searchResults: Array<{
-    documentId: string;
-    documentName: string;
-    text: string;
-    score: number;
-  }>
-): Promise<string> {
+async function generateAnswer(query: string, context: string): Promise<string> {
   try {
     console.log(`Using model: ${MODEL_ID} to generate answer`);
 

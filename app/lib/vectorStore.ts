@@ -10,7 +10,6 @@ const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY || "");
 
 // Path to store the vector database
 const METADATA_PATH = join(process.cwd(), "data", "metadata.json");
-const MAX_BATCH_SIZE = 10; // Process embeddings in batches of 10
 
 // Ensure data directory exists
 async function ensureDataDir() {
@@ -66,21 +65,6 @@ async function generateEmbedding(text: string): Promise<number[]> {
   } catch (error) {
     console.error("Error generating embedding:", error);
     throw new Error("Failed to generate embedding");
-  }
-}
-
-/**
- * Generate embeddings for multiple texts in batch
- */
-async function generateEmbeddingsBatch(texts: string[]): Promise<number[][]> {
-  try {
-    const results = await Promise.all(
-      texts.map((text) => generateEmbedding(text))
-    );
-    return results;
-  } catch (error) {
-    console.error("Error generating embeddings batch:", error);
-    throw new Error("Failed to generate embeddings batch");
   }
 }
 

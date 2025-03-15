@@ -7,7 +7,6 @@ import {
   addMessage as addMessageDb,
   deleteChat as deleteChatDb,
   updateChatTitle as updateChatTitleDb,
-  Chat,
   ChatMessage,
 } from "./chatService";
 

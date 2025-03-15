@@ -96,12 +96,23 @@ export default function UploadDocumentModal({
           setSuccess(false);
         }, 2000);
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("Upload error:", err);
-      setError(
-        err.response?.data?.error ||
-          "Failed to upload document. Please try again."
-      );
+      const errorMessage =
+        err &&
+        typeof err === "object" &&
+        "response" in err &&
+        err.response &&
+        typeof err.response === "object" &&
+        "data" in err.response &&
+        err.response.data &&
+        typeof err.response.data === "object" &&
+        "error" in err.response.data &&
+        typeof err.response.data.error === "string"
+          ? err.response.data.error
+          : "Failed to upload document. Please try again.";
+
+      setError(errorMessage);
     } finally {
       setUploading(false);
     }

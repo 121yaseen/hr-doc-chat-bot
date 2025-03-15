@@ -24,8 +24,26 @@ type Chat = {
   messages: ChatMessage[];
 };
 
+// Define a type for the API response chat
+interface ApiChat {
+  id: string;
+  title: string | null;
+  userId: string;
+  createdAt: Date;
+  updatedAt: Date;
+  messages: ApiChatMessage[];
+}
+
+// Define a type for the API response message
+interface ApiChatMessage {
+  id: string;
+  role: string;
+  content: string;
+  createdAt: Date;
+}
+
 // Helper function to convert API response to our Chat type
-function convertToChats(chats: any[]): Chat[] {
+function convertToChats(chats: ApiChat[]): Chat[] {
   return chats.map((chat) => ({
     id: chat.id,
     title: chat.title || "Untitled Chat", // Provide default if null
@@ -33,7 +51,7 @@ function convertToChats(chats: any[]): Chat[] {
     createdAt: chat.createdAt,
     updatedAt: chat.updatedAt,
     messages: Array.isArray(chat.messages)
-      ? chat.messages.map((msg: any) => ({
+      ? chat.messages.map((msg: ApiChatMessage) => ({
           id: msg.id,
           role: msg.role as "user" | "assistant",
           content: msg.content,

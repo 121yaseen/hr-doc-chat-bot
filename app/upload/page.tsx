@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useDropzone } from "react-dropzone";
 import axios from "axios";
@@ -17,12 +17,6 @@ export default function UploadPage() {
     success: boolean;
     message: string;
   } | null>(null);
-
-  // Redirect to login if not authenticated
-  if (!loading && !user) {
-    router.push("/login");
-    return null;
-  }
 
   const onDrop = useCallback((acceptedFiles: File[]) => {
     // Filter for PDF and DOCX files
@@ -51,7 +45,7 @@ export default function UploadPage() {
     setFiles((prevFiles) => prevFiles.filter((_, i) => i !== index));
   };
 
-  const handleUpload = async () => {
+  const uploadFiles = async () => {
     if (files.length === 0) {
       setUploadStatus({
         success: false,
@@ -64,33 +58,24 @@ export default function UploadPage() {
     setUploadStatus(null);
 
     try {
-      // Upload files one by one
-      const uploadedFiles = [];
-
-      for (const file of files) {
-        const formData = new FormData();
-        formData.append("file", file);
-
-        console.log(`Uploading file: ${file.name}`);
-        const response = await axios.post("/api/file-upload", formData, {
-          headers: {
-            "Content-Type": "multipart/form-data",
-          },
-        });
-
-        uploadedFiles.push(response.data);
-      }
-
-      setUploadStatus({
-        success: true,
-        message: `Successfully uploaded ${files.length} file(s). Processing has begun.`,
+      const formData = new FormData();
+      files.forEach((file) => {
+        formData.append("files", file);
       });
-      setFiles([]);
 
-      // Wait a moment before redirecting to documents page
-      setTimeout(() => {
-        router.push("/documents");
-      }, 1500);
+      const response = await axios.post("/api/documents/upload", formData, {
+        headers: {
+          "Content-Type": "multipart/form-data",
+        },
+      });
+
+      if (response.status === 200) {
+        setUploadStatus({
+          success: true,
+          message: `Successfully uploaded ${files.length} document(s).`,
+        });
+        setFiles([]);
+      }
     } catch (error) {
       console.error("Upload error:", error);
       setUploadStatus({
@@ -101,6 +86,18 @@ export default function UploadPage() {
       setUploading(false);
     }
   };
+
+  // Use useEffect for the redirect logic
+  useEffect(() => {
+    if (!loading && !user) {
+      router.push("/login");
+    }
+  }, [loading, user, router]);
+
+  // Return null during loading or if not authenticated
+  if (loading || (!loading && !user)) {
+    return null;
+  }
 
   return (
     <div className="container mx-auto px-4 py-12">
@@ -159,7 +156,7 @@ export default function UploadPage() {
 
             <div className="mt-6">
               <button
-                onClick={handleUpload}
+                onClick={uploadFiles}
                 disabled={uploading}
                 className={`btn btn-primary ${
                   uploading ? "opacity-70 cursor-not-allowed" : ""

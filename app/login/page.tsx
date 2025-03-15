@@ -31,7 +31,8 @@ export default function LoginPage() {
         router.push("/query");
         router.refresh();
       }
-    } catch (error) {
+    } catch (error: unknown) {
+      console.error("Login error:", error);
       setError("An error occurred. Please try again.");
     } finally {
       setLoading(false);

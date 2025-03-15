@@ -9,10 +9,12 @@ import {
   FaExclamationTriangle,
   FaRedo,
   FaUpload,
+  FaPlus,
 } from "react-icons/fa";
 import Link from "next/link";
 import { useUser } from "@/context/UserContext";
 import { useRouter } from "next/navigation";
+import UploadDocumentModal from "@/components/UploadDocumentModal";
 
 type Document = {
   id: string;
@@ -30,6 +32,7 @@ export default function DocumentsPage() {
   const [error, setError] = useState<string | null>(null);
   const [deleteLoading, setDeleteLoading] = useState<string | null>(null);
   const [reprocessLoading, setReprocessLoading] = useState<string | null>(null);
+  const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
 
   // Add a state to track if we have any processing documents
   const [hasProcessingDocuments, setHasProcessingDocuments] = useState(false);
@@ -116,7 +119,7 @@ export default function DocumentsPage() {
     setReprocessLoading(id);
 
     try {
-      const response = await axios.post(`/api/documents/${id}/reprocess`);
+      await axios.post(`/api/documents/${id}/reprocess`);
 
       // Update the document status in the local state
       setDocuments(
@@ -189,145 +192,165 @@ export default function DocumentsPage() {
   }
 
   return (
-    <div className="container mx-auto px-4 py-12">
-      <div className="max-w-5xl mx-auto">
-        <div className="mb-8 flex justify-between items-center">
-          <div>
-            <Link href="/" className="text-primary-600 hover:text-primary-800">
-              &larr; Back to Home
-            </Link>
-            <h1 className="text-3xl font-bold mt-4">Manage Documents</h1>
-            <p className="text-gray-600">
-              View and manage your uploaded HR documents.
-            </p>
-          </div>
-          <Link href="/upload" className="btn btn-primary flex items-center">
-            <FaUpload className="mr-2" /> Upload New Documents
-          </Link>
-        </div>
-
-        {isLoading ? (
-          <div className="flex justify-center items-center h-64">
-            <FaSpinner className="animate-spin text-4xl text-primary-500" />
-          </div>
-        ) : error ? (
-          <div className="bg-red-50 border border-red-200 text-red-800 rounded-md p-4">
-            <div className="flex items-center">
-              <FaExclamationTriangle className="mr-2" />
-              <p>{error}</p>
+    <>
+      <div className="container mx-auto px-4 py-12">
+        <div className="max-w-5xl mx-auto">
+          <div className="mb-8 flex justify-between items-center">
+            <div>
+              <Link
+                href="/query"
+                className="text-primary-600 hover:text-primary-800"
+              >
+                &larr; Back to Chat
+              </Link>
+              <h1 className="text-3xl font-bold mt-4">Manage Documents</h1>
+              <p className="text-gray-600">
+                View and manage your uploaded HR documents.
+              </p>
             </div>
             <button
-              onClick={handleTryAgain}
-              className="mt-2 text-red-700 hover:text-red-900 underline"
+              onClick={() => setIsUploadModalOpen(true)}
+              className="btn btn-primary flex items-center"
             >
-              Try Again
+              <FaPlus className="mr-2" /> Upload New Document
             </button>
           </div>
-        ) : documents.length === 0 ? (
-          <div className="bg-white rounded-lg shadow-md p-8 text-center">
-            <FaFile className="mx-auto text-4xl text-gray-400 mb-4" />
-            <h2 className="text-xl font-semibold mb-2">No Documents Found</h2>
-            <p className="text-gray-600 mb-6">
-              You haven't uploaded any documents yet.
-            </p>
-            <Link href="/upload" className="btn btn-primary">
-              Upload Documents
-            </Link>
-          </div>
-        ) : (
-          <div className="bg-white rounded-lg shadow-md overflow-hidden">
-            <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th
-                    scope="col"
-                    className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
-                  >
-                    Document
-                  </th>
-                  <th
-                    scope="col"
-                    className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
-                  >
-                    Upload Date
-                  </th>
-                  <th
-                    scope="col"
-                    className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
-                  >
-                    Size
-                  </th>
-                  <th
-                    scope="col"
-                    className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
-                  >
-                    Status
-                  </th>
-                  <th
-                    scope="col"
-                    className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider"
-                  >
-                    Actions
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
-                {documents.map((doc) => (
-                  <tr key={doc.id}>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="flex items-center">
-                        <FaFile className="text-gray-500 mr-3" />
-                        <span className="font-medium text-gray-900 truncate max-w-xs">
-                          {doc.filename}
-                        </span>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {formatDate(doc.uploadDate)}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {formatFileSize(doc.size)}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      {getStatusBadge(doc.status)}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                      <div className="flex justify-end space-x-2">
-                        {doc.status === "failed" && (
+
+          {isLoading ? (
+            <div className="flex justify-center items-center h-64">
+              <FaSpinner className="animate-spin text-4xl text-primary-500" />
+            </div>
+          ) : error ? (
+            <div className="bg-red-50 border border-red-200 text-red-800 rounded-md p-4">
+              <div className="flex items-center">
+                <FaExclamationTriangle className="mr-2" />
+                <p>{error}</p>
+              </div>
+              <button
+                onClick={handleTryAgain}
+                className="mt-2 text-red-700 hover:text-red-900 underline"
+              >
+                Try Again
+              </button>
+            </div>
+          ) : documents.length === 0 ? (
+            <div className="bg-white rounded-lg shadow-md p-8 text-center">
+              <FaFile className="mx-auto text-4xl text-gray-400 mb-4" />
+              <h2 className="text-xl font-semibold mb-2">No Documents Found</h2>
+              <p className="text-gray-600 mb-6">
+                You haven&apos;t uploaded any documents yet.
+              </p>
+              <button
+                onClick={() => setIsUploadModalOpen(true)}
+                className="btn btn-primary flex items-center justify-center mx-auto"
+              >
+                <FaUpload className="mr-2" /> Upload Your First Document
+              </button>
+            </div>
+          ) : (
+            <div className="bg-white rounded-lg shadow-md overflow-hidden">
+              <table className="min-w-full divide-y divide-gray-200">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th
+                      scope="col"
+                      className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+                    >
+                      Document
+                    </th>
+                    <th
+                      scope="col"
+                      className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+                    >
+                      Upload Date
+                    </th>
+                    <th
+                      scope="col"
+                      className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+                    >
+                      Size
+                    </th>
+                    <th
+                      scope="col"
+                      className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+                    >
+                      Status
+                    </th>
+                    <th
+                      scope="col"
+                      className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider"
+                    >
+                      Actions
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="bg-white divide-y divide-gray-200">
+                  {documents.map((doc) => (
+                    <tr key={doc.id}>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="flex items-center">
+                          <FaFile className="text-gray-500 mr-3" />
+                          <span className="font-medium text-gray-900 truncate max-w-xs">
+                            {doc.filename}
+                          </span>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        {formatDate(doc.uploadDate)}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        {formatFileSize(doc.size)}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        {getStatusBadge(doc.status)}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                        <div className="flex justify-end space-x-2">
+                          {doc.status === "failed" && (
+                            <button
+                              onClick={() => handleReprocess(doc.id)}
+                              disabled={reprocessLoading === doc.id}
+                              className="text-primary-600 hover:text-primary-900"
+                              title="Reprocess document"
+                            >
+                              {reprocessLoading === doc.id ? (
+                                <FaSpinner className="animate-spin" />
+                              ) : (
+                                <FaRedo />
+                              )}
+                            </button>
+                          )}
                           <button
-                            onClick={() => handleReprocess(doc.id)}
-                            disabled={reprocessLoading === doc.id}
-                            className="text-primary-600 hover:text-primary-900"
-                            title="Reprocess document"
+                            onClick={() => handleDelete(doc.id)}
+                            disabled={deleteLoading === doc.id}
+                            className="text-red-600 hover:text-red-900"
+                            title="Delete document"
                           >
-                            {reprocessLoading === doc.id ? (
+                            {deleteLoading === doc.id ? (
                               <FaSpinner className="animate-spin" />
                             ) : (
-                              <FaRedo />
+                              <FaTrash />
                             )}
                           </button>
-                        )}
-                        <button
-                          onClick={() => handleDelete(doc.id)}
-                          disabled={deleteLoading === doc.id}
-                          className="text-red-600 hover:text-red-900"
-                          title="Delete document"
-                        >
-                          {deleteLoading === doc.id ? (
-                            <FaSpinner className="animate-spin" />
-                          ) : (
-                            <FaTrash />
-                          )}
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
       </div>
-    </div>
+
+      <UploadDocumentModal
+        isOpen={isUploadModalOpen}
+        onClose={() => setIsUploadModalOpen(false)}
+        onSuccess={() => {
+          // Refresh the document list after successful upload
+          fetchDocuments();
+        }}
+      />
+    </>
   );
 }

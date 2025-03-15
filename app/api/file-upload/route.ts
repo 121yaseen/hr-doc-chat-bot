@@ -6,7 +6,7 @@ import { processDocument } from "@/lib/documentProcessor";
 import { addDocument, updateDocumentStatus } from "@/lib/documentStore";
 import { PdfDocument } from "@/models/types";
 import { getServerSession } from "next-auth";
-import { authOptions } from "../auth/[...nextauth]/route";
+import { authOptions } from "@/lib/auth";
 
 // Document type definition to match documentStore.ts
 // type Document = {
