@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { queryDocuments } from "@/lib/documentQuery";
 import { getServerSession } from "next-auth";
-import { authOptions } from "../auth/[...nextauth]/route";
-import { addMessage } from "@/lib/chatActions";
+import { authOptions } from "@/lib/auth";
+import { addMessage, getChat, updateChatTitle } from "@/lib/chatActions";
 
 export async function POST(request: NextRequest) {
   try {
@@ -38,8 +38,23 @@ export async function POST(request: NextRequest) {
     // Get the user ID from the session
     const userId = session.user.id as string;
 
-    // Save the user's message to the database
+    // Check if this is the first message in the chat
     if (chatId) {
+      const chatResult = await getChat(chatId, userId);
+
+      // If this is a new chat (no messages yet), update the title based on the query
+      if (
+        chatResult.success &&
+        chatResult.chat &&
+        chatResult.chat.messages.length === 0
+      ) {
+        // Generate a title from the query (limit to 50 chars for display purposes)
+        const title =
+          query.length > 50 ? query.substring(0, 47) + "..." : query;
+        await updateChatTitle(chatId, userId, title);
+      }
+
+      // Save the user's message to the database
       await addMessage(chatId, {
         role: "user",
         content: query,
