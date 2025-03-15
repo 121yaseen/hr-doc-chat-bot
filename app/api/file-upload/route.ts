@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { writeFile, mkdir } from "fs/promises";
-import { join, extname } from "path";
+import { extname } from "path";
 import { v4 as uuidv4 } from "uuid";
 import { processDocument } from "@/lib/documentProcessor";
 import { addDocument, updateDocumentStatus } from "@/lib/documentStore";
@@ -21,15 +20,6 @@ export const dynamic = "force-dynamic";
 //   size: number;
 // };
 
-// Ensure uploads directory exists
-const ensureUploadsDir = async () => {
-  try {
-    await mkdir(join(process.cwd(), "uploads"), { recursive: true });
-  } catch (error) {
-    console.error("Error creating uploads directory:", error);
-  }
-};
-
 export async function POST(request: NextRequest) {
   console.log("File upload API route called");
 
@@ -44,8 +34,6 @@ export async function POST(request: NextRequest) {
         { status: 401 }
       );
     }
-
-    await ensureUploadsDir();
 
     const formData = await request.formData();
     console.log("Form data received");
@@ -73,31 +61,24 @@ export async function POST(request: NextRequest) {
 
     const fileId = uuidv4();
     const fileName = file.name;
-    const filePath = join(
-      process.cwd(),
-      "uploads",
-      `${fileId}${fileExtension}`
-    );
-    console.log(`Saving file to: ${filePath}`);
 
-    // Convert file to buffer and save it
+    // Convert file to buffer
     const bytes = await file.arrayBuffer();
     const buffer = Buffer.from(bytes);
-    await writeFile(filePath, buffer);
-    console.log(`File saved: ${filePath}`);
 
-    // Store file metadata in database
+    // Store file metadata and content in database
     const documentData: PdfDocument = {
       id: fileId,
       filename: fileName,
-      path: filePath,
+      fileContent: buffer,
+      contentType: file.type,
       uploadDate: new Date().toISOString(),
       status: "processing",
       size: buffer.length,
-      userId: session.user.id as string, // Associate document with user
+      userId: session.user.id as string,
     };
 
-    //Save file metadata to database
+    // Save file metadata to database
     await addDocument(documentData);
     console.log(`Document metadata added for ${fileId}`);
 
