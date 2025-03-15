@@ -1,6 +1,6 @@
-# HR Document Bot
+# HR Document Chat Bot
 
-A web application that allows employees to upload PDF documents, process them, and query the content using natural language.
+A Next.js application that allows users to upload HR documents and query them using natural language.
 
 ## Features
 
@@ -8,13 +8,16 @@ A web application that allows employees to upload PDF documents, process them, a
 - **Document Processing**: Extract and index text from PDF documents
 - **Natural Language Queries**: Ask questions about your documents and get accurate answers
 - **Document Management**: View and manage your uploaded documents
+- **User Authentication**: Secure access with NextAuth.js
 
 ## Technology Stack
 
 - **Frontend**: Next.js, React, TailwindCSS
 - **PDF Processing**: PDF.js
-- **Vector Database**: FAISS for efficient similarity search
-- **AI**: Google's Gemini model for generating responses and text-embedding-004 for embeddings
+- **Vector Database**: Simple vector store for efficient similarity search
+- **AI**: Google's Gemini model for generating responses and embeddings
+- **Authentication**: NextAuth.js with Prisma adapter
+- **Database**: SQLite (development), PostgreSQL (production)
 
 ## Getting Started
 
@@ -27,27 +30,90 @@ A web application that allows employees to upload PDF documents, process them, a
 ### Installation
 
 1. Clone the repository:
-   ```
+   ```bash
    git clone https://github.com/yourusername/hr-bot.git
    cd hr-bot
    ```
 
 2. Install dependencies:
-   ```
+   ```bash
    npm install
    ```
 
-3. Create a `.env.local` file in the root directory with your Google API key:
-   ```
-   GOOGLE_API_KEY=your_google_api_key_here
+3. Set up environment variables:
+   - Copy `.env.example` to `.env.local` and fill in the values
+   ```bash
+   cp .env.example .env.local
    ```
 
-4. Start the development server:
+4. Initialize the database:
+   ```bash
+   npx prisma migrate dev
    ```
+
+5. Start the development server:
+   ```bash
    npm run dev
    ```
 
-5. Open [http://localhost:3000](http://localhost:3000) in your browser to see the application.
+6. Open [http://localhost:3000](http://localhost:3000) in your browser to see the application.
+
+## Deploying to Vercel
+
+### Step 1: Prepare Your Database
+
+The application uses SQLite by default, which is not suitable for production deployments on Vercel. For production, you need to use a PostgreSQL database:
+
+1. Create a PostgreSQL database using Vercel Postgres, Supabase, Railway, or any other PostgreSQL provider.
+2. Get your PostgreSQL connection string.
+
+### Step 2: Update Prisma Schema for Production
+
+Before deploying, update your Prisma schema to use PostgreSQL:
+
+1. Open `prisma/schema.prisma`
+2. Change the database provider from `sqlite` to `postgresql`:
+   ```prisma
+   datasource db {
+     provider = "postgresql"
+     url      = env("DATABASE_URL")
+   }
+   ```
+3. Commit and push these changes to your repository.
+
+### Step 3: Deploy to Vercel
+
+1. Push your code to GitHub
+2. Create a new project in Vercel and link it to your GitHub repository
+3. Set up the following environment variables in Vercel:
+   - `DATABASE_URL`: Your PostgreSQL connection string
+   - `NEXTAUTH_SECRET`: A secure random string for NextAuth.js
+   - `NEXTAUTH_URL`: Your production URL (e.g., `https://your-app.vercel.app`)
+   - `GOOGLE_API_KEY`: Your Google API key for Gemini AI
+   - `GEMINI_API_KEY`: Your Gemini API key (if different from GOOGLE_API_KEY)
+   - OAuth provider credentials if you're using social login
+4. Deploy the application
+
+### Step 4: Run Migrations on Production Database
+
+After deploying, you need to run migrations on your production database:
+
+1. Install Vercel CLI:
+   ```bash
+   npm install -g vercel
+   ```
+2. Link your local project to the Vercel project:
+   ```bash
+   vercel link
+   ```
+3. Pull the environment variables:
+   ```bash
+   vercel env pull .env.production
+   ```
+4. Run the migrations:
+   ```bash
+   npx prisma migrate deploy
+   ```
 
 ## Usage
 
@@ -59,26 +125,27 @@ A web application that allows employees to upload PDF documents, process them, a
 
 - The application stores uploaded documents locally in the `uploads` directory.
 - Document processing happens on the server, and the extracted text is stored in a vector database.
-- Authentication is not implemented in this version but should be added for production use.
+- Authentication is implemented using NextAuth.js.
 
-## Development
+## Troubleshooting Vercel Deployment
 
-### Project Structure
+If you encounter issues with Prisma during deployment:
 
-- `app/`: Next.js application code
-  - `api/`: API routes for handling requests
-  - `components/`: React components
-  - `lib/`: Utility functions and libraries
-  - `styles/`: CSS styles
-- `uploads/`: Directory for storing uploaded PDF files
-- `data/`: Directory for storing vector database and document metadata
+1. Make sure the `postinstall` script is in your `package.json`:
+   ```json
+   "postinstall": "prisma generate"
+   ```
 
-### Adding Features
+2. Make sure the `build` script includes Prisma generation:
+   ```json
+   "build": "prisma generate && next build"
+   ```
 
-- **Authentication**: Implement user authentication to secure the application
-- **Document Categories**: Add support for categorizing documents
-- **Advanced Search**: Implement filters and advanced search options
-- **Export Functionality**: Allow exporting query results
+3. Check that your environment variables are correctly set in Vercel.
+
+4. If you're seeing the error "Prisma has detected that this project was built on Vercel, which caches dependencies", make sure you have both the `postinstall` script and the updated `build` script.
+
+5. If you're having issues with file uploads, remember that Vercel's filesystem is read-only in production. You'll need to use a cloud storage solution like AWS S3, Google Cloud Storage, or similar for storing uploaded files.
 
 ## License
 
