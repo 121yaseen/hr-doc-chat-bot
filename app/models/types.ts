@@ -8,4 +8,5 @@ export type PdfDocument = {
   uploadDate: string;
   status: "processing" | "indexed" | "failed";
   size: number;
+  userId?: string; // Optional for backward compatibility with existing documents
 };

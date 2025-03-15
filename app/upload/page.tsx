@@ -6,9 +6,11 @@ import { useDropzone } from "react-dropzone";
 import axios from "axios";
 import { FaFileUpload, FaSpinner, FaCheck, FaTimes } from "react-icons/fa";
 import Link from "next/link";
+import { useUser } from "@/context/UserContext";
 
 export default function UploadPage() {
   const router = useRouter();
+  const { user, loading } = useUser();
   const [files, setFiles] = useState<File[]>([]);
   const [uploading, setUploading] = useState(false);
   const [uploadStatus, setUploadStatus] = useState<{
@@ -16,18 +18,31 @@ export default function UploadPage() {
     message: string;
   } | null>(null);
 
+  // Redirect to login if not authenticated
+  if (!loading && !user) {
+    router.push("/login");
+    return null;
+  }
+
   const onDrop = useCallback((acceptedFiles: File[]) => {
-    // Filter for PDF files only
-    const pdfFiles = acceptedFiles.filter(
-      (file) => file.type === "application/pdf"
+    // Filter for PDF and DOCX files
+    const validFiles = acceptedFiles.filter(
+      (file) =>
+        file.type === "application/pdf" ||
+        file.type ===
+          "application/vnd.openxmlformats-officedocument.wordprocessingml.document" ||
+        file.name.endsWith(".docx") ||
+        file.name.endsWith(".pdf")
     );
-    setFiles((prevFiles) => [...prevFiles, ...pdfFiles]);
+    setFiles((prevFiles) => [...prevFiles, ...validFiles]);
   }, []);
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
     accept: {
       "application/pdf": [".pdf"],
+      "application/vnd.openxmlformats-officedocument.wordprocessingml.document":
+        [".docx"],
     },
     multiple: true,
   });
@@ -40,7 +55,7 @@ export default function UploadPage() {
     if (files.length === 0) {
       setUploadStatus({
         success: false,
-        message: "Please select at least one PDF file to upload.",
+        message: "Please select at least one file to upload.",
       });
       return;
     }
@@ -94,10 +109,10 @@ export default function UploadPage() {
           <Link href="/" className="text-primary-600 hover:text-primary-800">
             &larr; Back to Home
           </Link>
-          <h1 className="text-3xl font-bold mt-4">Upload PDF Documents</h1>
+          <h1 className="text-3xl font-bold mt-4">Upload Documents</h1>
           <p className="text-gray-600">
             Upload HR documents to be processed and indexed for future queries.
-            Only PDF files are accepted.
+            PDF and DOCX files are accepted.
           </p>
         </div>
 
@@ -113,11 +128,11 @@ export default function UploadPage() {
           <FaFileUpload className="mx-auto text-4xl text-primary-500 mb-4" />
           <p className="text-lg mb-2">
             {isDragActive
-              ? "Drop the PDF files here..."
-              : "Drag & drop PDF files here, or click to select files"}
+              ? "Drop the files here..."
+              : "Drag & drop files here, or click to select files"}
           </p>
           <p className="text-sm text-gray-500">
-            Only PDF files will be accepted
+            PDF and DOCX files are accepted
           </p>
         </div>
 

@@ -1,10 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { writeFile, mkdir } from "fs/promises";
-import { join } from "path";
+import { join, extname } from "path";
 import { v4 as uuidv4 } from "uuid";
 import { processDocument } from "@/lib/documentProcessor";
 import { addDocument, updateDocumentStatus } from "@/lib/documentStore";
 import { PdfDocument } from "@/models/types";
+import { getServerSession } from "next-auth";
+import { authOptions } from "../auth/[...nextauth]/route";
 
 // Document type definition to match documentStore.ts
 // type Document = {
@@ -29,6 +31,17 @@ export async function POST(request: NextRequest) {
   console.log("File upload API route called");
 
   try {
+    // Get the user session
+    const session = await getServerSession(authOptions);
+
+    // Check if user is authenticated
+    if (!session || !session.user) {
+      return NextResponse.json(
+        { error: "Authentication required" },
+        { status: 401 }
+      );
+    }
+
     await ensureUploadsDir();
 
     const formData = await request.formData();
@@ -46,9 +59,22 @@ export async function POST(request: NextRequest) {
 
     console.log(`Processing file: ${file.name}, type: ${file.type}`);
 
+    // Check if file is PDF or DOCX
+    const fileExtension = extname(file.name).toLowerCase();
+    if (fileExtension !== ".pdf" && fileExtension !== ".docx") {
+      return NextResponse.json(
+        { error: "Only PDF and DOCX files are supported" },
+        { status: 400 }
+      );
+    }
+
     const fileId = uuidv4();
     const fileName = file.name;
-    const filePath = join(process.cwd(), "uploads", `${fileId}.pdf`);
+    const filePath = join(
+      process.cwd(),
+      "uploads",
+      `${fileId}${fileExtension}`
+    );
     console.log(`Saving file to: ${filePath}`);
 
     // Convert file to buffer and save it
@@ -65,6 +91,7 @@ export async function POST(request: NextRequest) {
       uploadDate: new Date().toISOString(),
       status: "processing",
       size: buffer.length,
+      userId: session.user.id as string, // Associate document with user
     };
 
     //Save file metadata to database
@@ -74,14 +101,29 @@ export async function POST(request: NextRequest) {
     // Process the document in the background
     try {
       console.log(`Starting document processing for ${fileId}`);
-      const success = await processDocument(documentData);
-      if (success) {
-        console.log(`Document processing completed successfully for ${fileId}`);
-      } else {
-        console.log(`Document processing failed for ${fileId}`);
-      }
+      // Process document asynchronously without awaiting
+      processDocument(documentData)
+        .then((success) => {
+          if (success) {
+            console.log(
+              `Document processing completed successfully for ${fileId}`
+            );
+          } else {
+            console.log(`Document processing failed for ${fileId}`);
+          }
+        })
+        .catch((error) => {
+          console.error(`Error processing document ${fileId}:`, error);
+          // Update the document status to failed if processing fails
+          updateDocumentStatus(fileId, "failed").catch((statusError) => {
+            console.error(
+              `Error updating document status for ${fileId}:`,
+              statusError
+            );
+          });
+        });
     } catch (error) {
-      console.error(`Error processing document ${fileId}:`, error);
+      console.error(`Error starting document processing ${fileId}:`, error);
       // Update the document status to failed if processing fails immediately
       try {
         await updateDocumentStatus(fileId, "failed");

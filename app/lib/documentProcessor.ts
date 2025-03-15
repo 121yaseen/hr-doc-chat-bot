@@ -3,9 +3,10 @@
 import { updateDocumentStatus, getDocument } from "./documentStore";
 import { indexDocument } from "./vectorStore";
 import { readFile } from "fs/promises";
-import pdfParse from "pdf-parse";
 import { PdfDocument } from "@/models/types";
-import { join } from "path";
+import { join, extname } from "path";
+import { PythonShell } from "python-shell";
+import mammoth from "mammoth";
 
 // Maximum number of chunks to process at once to avoid memory issues
 const MAX_CHUNKS = 50;
@@ -20,10 +21,25 @@ export async function processDocument(document: PdfDocument): Promise<boolean> {
     // Update status to processing
     await updateDocumentStatus(document.id, "processing");
 
-    // Extract text from PDF
-    //const text = await extractTextFromPdf(document.path);
-    const text = "test";
+    // Determine file type and extract text accordingly
+    const fileExtension = extname(document.path).toLowerCase();
+    let text = "";
 
+    if (fileExtension === ".pdf") {
+      // Extract text from PDF
+      text = await extractTextFromPdfWithPlumber(document.path);
+    } else if (fileExtension === ".docx") {
+      // Extract text from DOCX
+      text = await extractTextFromDocx(document.path);
+    } else {
+      console.error(
+        `Unsupported file type: ${fileExtension} for document: ${document.id}`
+      );
+      await updateDocumentStatus(document.id, "failed");
+      return false;
+    }
+
+    console.log(`Extracted text from document: ${document.id}`, text);
     if (!text || text.trim().length === 0) {
       console.error(`No text could be extracted from document: ${document.id}`);
       await updateDocumentStatus(document.id, "failed");
@@ -34,24 +50,17 @@ export async function processDocument(document: PdfDocument): Promise<boolean> {
       `Successfully extracted ${text.length} characters from document: ${document.id}`
     );
 
-    // Split text into chunks to avoid memory issues
-    const chunks = splitTextIntoChunks(text);
-    console.log(`Split text into ${chunks.length} chunks`);
-
-    // Index each chunk
-    for (let i = 0; i < chunks.length; i++) {
-      const chunk = chunks[i];
-      await indexDocument({
-        id: `${document.id}-${i}`,
-        documentId: document.id,
-        text: chunk,
-        metadata: {
-          filename: document.filename,
-          chunkIndex: i,
-          totalChunks: chunks.length,
-        },
-      });
-    }
+    // Index the full document text
+    await indexDocument({
+      id: document.id,
+      documentId: document.id,
+      text: text,
+      metadata: {
+        filename: document.filename,
+        chunkIndex: 0,
+        totalChunks: 1,
+      },
+    });
 
     // Update status to indexed
     await updateDocumentStatus(document.id, "indexed");
@@ -72,46 +81,91 @@ export async function processDocument(document: PdfDocument): Promise<boolean> {
 }
 
 /**
- * Extract text from a PDF file
+ * Extract text from a PDF file using pdfplumber via Python
  */
-// async function extractTextFromPdf(filePath: string): Promise<string> {
-//   try {
-//     console.log(`Attempting to extract text from PDF: ${filePath}`);
-//     const dataBuffer = await readFile(filePath);
+async function extractTextFromPdfWithPlumber(
+  filePath: string
+): Promise<string> {
+  try {
+    console.log(
+      `Attempting to extract text from PDF with pdfplumber: ${filePath}`
+    );
 
-//     try {
-//       // Primary extraction method using pdf-parse
-//       const pdfData = await pdfParse(dataBuffer);
-//       const text = pdfData.text || "";
+    // Set up Python shell options
+    const options = {
+      mode: "json" as const,
+      pythonPath: join(process.cwd(), "pdf_env/bin/python"),
+      scriptPath: join(process.cwd(), "scripts"),
+      args: [filePath],
+    };
 
-//       if (text.trim().length > 0) {
-//         return text;
-//       }
+    // Run the Python script
+    const results = await PythonShell.run("extract_pdf_text.py", options);
 
-//       throw new Error("Primary extraction method returned empty text");
-//     } catch (primaryError) {
-//       console.error(
-//         "Primary PDF extraction failed, trying fallback method:",
-//         primaryError
-//       );
+    // Parse the result
+    if (results && results.length > 0) {
+      const result = results[0];
 
-//       // Fallback method - read the PDF directly
-//       // This is a simplified fallback that may not work for all PDFs
-//       // In a production environment, you might want to use multiple libraries
-//       const text = dataBuffer.toString("utf-8");
-//       const textContent = text.replace(/[^\x20-\x7E\n]/g, " ").trim();
+      if (result.success) {
+        console.log(
+          `Successfully extracted ${result.text.length} characters from PDF`
+        );
+        return result.text;
+      } else {
+        console.error("Error in Python PDF extraction:", result.error);
+        console.error("Traceback:", result.traceback);
+        throw new Error(`Python PDF extraction failed: ${result.error}`);
+      }
+    }
 
-//       if (textContent.length > 0) {
-//         return textContent;
-//       }
+    throw new Error("No results returned from Python PDF extraction");
+  } catch (error) {
+    console.error(`Error extracting text from PDF with pdfplumber:`, error);
 
-//       throw new Error("Both primary and fallback extraction methods failed");
-//     }
-//   } catch (error) {
-//     console.error(`Error extracting text from PDF:`, error);
-//     throw error;
-//   }
-// }
+    // Fallback to a simple extraction method if Python fails
+    try {
+      console.log("Attempting fallback extraction method...");
+      const dataBuffer = await readFile(filePath);
+      const text = dataBuffer.toString("utf-8");
+      const textContent = text.replace(/[^\x20-\x7E\n]/g, " ").trim();
+
+      if (textContent.length > 0) {
+        return textContent;
+      }
+    } catch (fallbackError) {
+      console.error("Fallback extraction also failed:", fallbackError);
+    }
+
+    throw error;
+  }
+}
+
+/**
+ * Extract text from a DOCX file using mammoth
+ */
+async function extractTextFromDocx(filePath: string): Promise<string> {
+  try {
+    console.log(`Attempting to extract text from DOCX: ${filePath}`);
+
+    // Read the file
+    const buffer = await readFile(filePath);
+
+    // Extract text using mammoth
+    const result = await mammoth.extractRawText({ buffer });
+
+    if (result && result.value) {
+      console.log(
+        `Successfully extracted ${result.value.length} characters from DOCX`
+      );
+      return result.value;
+    }
+
+    throw new Error("Failed to extract text from DOCX");
+  } catch (error) {
+    console.error(`Error extracting text from DOCX:`, error);
+    throw error;
+  }
+}
 
 /**
  * Split text into chunks for indexing

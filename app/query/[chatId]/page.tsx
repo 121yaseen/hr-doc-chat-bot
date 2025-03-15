@@ -5,8 +5,8 @@ import axios from "axios";
 import { FaSearch, FaSpinner } from "react-icons/fa";
 import ReactMarkdown from "react-markdown";
 import { useUser } from "@/context/UserContext";
-import { useRouter } from "next/navigation";
-import { createChat, addMessage } from "@/lib/chatActions";
+import { getChat, addMessage } from "@/lib/chatActions";
+import { useParams } from "next/navigation";
 
 type Message = {
   id?: string;
@@ -15,57 +15,61 @@ type Message = {
   isLoading?: boolean;
 };
 
-export default function QueryPage() {
+export default function ChatPage() {
   const { user } = useUser();
+  const params = useParams();
+  const chatId = params?.chatId as string;
+
   const [query, setQuery] = useState("");
   const [messages, setMessages] = useState<Message[]>([]);
   const [loading, setLoading] = useState(false);
-  const [chatId, setChatId] = useState<string | null>(null);
+  const [isLoadingHistory, setIsLoadingHistory] = useState(true);
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const router = useRouter();
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   };
 
+  // Load chat history
+  useEffect(() => {
+    async function loadChatHistory() {
+      if (!user || !chatId) return;
+
+      try {
+        setIsLoadingHistory(true);
+        const result = await getChat(chatId, user.id);
+
+        if (result.success && result.chat && result.chat.messages) {
+          const formattedMessages: Message[] = result.chat.messages.map(
+            (msg) => ({
+              id: msg.id,
+              role: msg.role as "user" | "assistant",
+              content: msg.content,
+            })
+          );
+
+          setMessages(formattedMessages);
+        } else if (!result.success) {
+          console.error("Failed to load chat history:", result.error);
+        }
+      } catch (error) {
+        console.error("Failed to load chat history:", error);
+      } finally {
+        setIsLoadingHistory(false);
+      }
+    }
+
+    loadChatHistory();
+  }, [chatId, user]);
+
   useEffect(() => {
     scrollToBottom();
   }, [messages]);
 
-  // Create a new chat when the user starts a conversation
-  const ensureChatExists = async () => {
-    if (!user) return null;
-
-    if (!chatId) {
-      try {
-        const result = await createChat(user.id);
-        if (result.success && result.chat) {
-          setChatId(result.chat.id);
-          return result.chat.id;
-        } else {
-          console.error("Failed to create chat:", result.error);
-          return null;
-        }
-      } catch (error) {
-        console.error("Failed to create chat:", error);
-        return null;
-      }
-    }
-
-    return chatId;
-  };
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!query.trim() || !user) return;
-
-    // Ensure we have a chat to add messages to
-    const currentChatId = await ensureChatExists();
-    if (!currentChatId) {
-      console.error("Could not create or find chat");
-      return;
-    }
+    if (!query.trim() || !user || !chatId) return;
 
     const userMessage: Message = {
       role: "user",
@@ -85,7 +89,7 @@ export default function QueryPage() {
 
     try {
       // Save user message to database
-      await addMessage(currentChatId, {
+      await addMessage(chatId, {
         role: "user",
         content: query.trim(),
       });
@@ -93,7 +97,7 @@ export default function QueryPage() {
       // Send query to API
       const response = await axios.post("/api/query", {
         query: query.trim(),
-        chatId: currentChatId,
+        chatId: chatId,
       });
 
       // Extract the answer text, handling nested structure if present
@@ -109,7 +113,7 @@ export default function QueryPage() {
       }
 
       // Save assistant response to database
-      await addMessage(currentChatId, {
+      await addMessage(chatId, {
         role: "assistant",
         content: answerText,
       });
@@ -126,11 +130,6 @@ export default function QueryPage() {
         });
         return newMessages;
       });
-
-      // If this is the first message, redirect to the chat page
-      if (messages.length === 0) {
-        router.push(`/query/${currentChatId}`);
-      }
     } catch (error) {
       console.error("Query error:", error);
 
@@ -143,15 +142,11 @@ export default function QueryPage() {
         const errorMessage =
           "Sorry, I encountered an error while processing your query. Please try again.";
 
-        // Save error message to database if we have a chat
-        if (currentChatId) {
-          addMessage(currentChatId, {
-            role: "assistant",
-            content: errorMessage,
-          }).catch((err) =>
-            console.error("Failed to save error message:", err)
-          );
-        }
+        // Save error message to database
+        addMessage(chatId, {
+          role: "assistant",
+          content: errorMessage,
+        }).catch((err) => console.error("Failed to save error message:", err));
 
         // Add the error message to the UI
         newMessages.push({
@@ -165,24 +160,24 @@ export default function QueryPage() {
     }
   };
 
+  if (isLoadingHistory) {
+    return (
+      <div className="flex justify-center items-center h-[calc(100vh-100px)]">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary-600"></div>
+      </div>
+    );
+  }
+
   return (
     <div className="container mx-auto px-4 py-8">
       <div className="max-w-3xl mx-auto">
-        <div className="mb-6">
-          <h1 className="text-2xl font-bold">New Conversation</h1>
-          <p className="text-gray-600">
-            Ask questions about your uploaded HR documents and get accurate
-            answers powered by Gemini 2.0 Flash.
-          </p>
-        </div>
-
         <div className="bg-white rounded-lg shadow-md overflow-hidden">
           <div className="h-[calc(100vh-300px)] overflow-y-auto p-6 bg-gray-50">
             {messages.length === 0 ? (
               <div className="flex flex-col items-center justify-center h-full text-gray-500">
                 <FaSearch className="text-4xl mb-4" />
                 <p className="text-center">
-                  Ask a question about your HR documents to get started.
+                  This conversation is empty. Ask a question to get started.
                 </p>
               </div>
             ) : (

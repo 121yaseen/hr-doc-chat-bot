@@ -96,6 +96,12 @@ export async function queryDocuments(query: string): Promise<QueryResult> {
       answer = generateSimpleAnswer(query, resultsToUse);
     }
 
+    // Make sure answer is a string, not an object
+    if (typeof answer === "object" && answer !== null) {
+      console.warn("Answer is an object, converting to string:", answer);
+      answer = JSON.stringify(answer);
+    }
+
     return {
       answer: answer,
       sources: resultsToUse.map((result) => ({

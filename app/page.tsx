@@ -1,10 +1,40 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import { useUser } from "@/context/UserContext";
+import { FaSpinner, FaFileUpload, FaSearch, FaBook } from "react-icons/fa";
 import Link from "next/link";
-import { FaFileUpload, FaSearch, FaBook } from "react-icons/fa";
 
-export default function Home() {
+export default function HomePage() {
+  const { user, loading } = useUser();
+  const router = useRouter();
+  const [redirecting, setRedirecting] = useState(false);
+
+  useEffect(() => {
+    if (!loading && !user) {
+      setRedirecting(true);
+      router.push("/login");
+    }
+  }, [user, loading, router]);
+
+  if (loading || redirecting) {
+    return (
+      <div className="flex justify-center items-center min-h-screen">
+        <div className="text-center">
+          <FaSpinner className="animate-spin text-4xl mx-auto text-primary-600 mb-4" />
+          <p className="text-gray-600">
+            {redirecting ? "Redirecting to login..." : "Loading..."}
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!user) {
+    return null;
+  }
+
   return (
     <div className="container mx-auto px-4 py-12">
       <div className="text-center mb-12">
@@ -12,14 +42,14 @@ export default function Home() {
           HR Document Bot
         </h1>
         <p className="text-xl text-gray-600 max-w-2xl mx-auto">
-          Upload PDF documents, process them, and query the information with
-          natural language.
+          Upload PDF or DOCX documents, process them, and query the information
+          with natural language.
         </p>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 max-w-5xl mx-auto">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-5xl mx-auto">
         <Link href="/upload" className="card hover:shadow-lg transition-shadow">
-          <div className="flex flex-col items-center text-center">
+          <div className="flex flex-col items-center text-center p-6 bg-white rounded-lg shadow-md">
             <div className="bg-primary-100 p-4 rounded-full mb-4">
               <FaFileUpload className="text-4xl text-primary-600" />
             </div>
@@ -27,14 +57,14 @@ export default function Home() {
               Upload Documents
             </h2>
             <p className="text-gray-600">
-              Upload PDF documents to be processed and indexed for future
-              queries.
+              Upload PDF and DOCX documents to be processed and indexed for
+              future queries.
             </p>
           </div>
         </Link>
 
         <Link href="/query" className="card hover:shadow-lg transition-shadow">
-          <div className="flex flex-col items-center text-center">
+          <div className="flex flex-col items-center text-center p-6 bg-white rounded-lg shadow-md">
             <div className="bg-primary-100 p-4 rounded-full mb-4">
               <FaSearch className="text-4xl text-primary-600" />
             </div>
@@ -52,7 +82,7 @@ export default function Home() {
           href="/documents"
           className="card hover:shadow-lg transition-shadow"
         >
-          <div className="flex flex-col items-center text-center">
+          <div className="flex flex-col items-center text-center p-6 bg-white rounded-lg shadow-md">
             <div className="bg-primary-100 p-4 rounded-full mb-4">
               <FaBook className="text-4xl text-primary-600" />
             </div>

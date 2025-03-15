@@ -8,8 +8,11 @@ import {
   FaSpinner,
   FaExclamationTriangle,
   FaRedo,
+  FaUpload,
 } from "react-icons/fa";
 import Link from "next/link";
+import { useUser } from "@/context/UserContext";
+import { useRouter } from "next/navigation";
 
 type Document = {
   id: string;
@@ -20,29 +23,71 @@ type Document = {
 };
 
 export default function DocumentsPage() {
+  const { user, loading } = useUser();
+  const router = useRouter();
   const [documents, setDocuments] = useState<Document[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [deleteLoading, setDeleteLoading] = useState<string | null>(null);
   const [reprocessLoading, setReprocessLoading] = useState<string | null>(null);
 
-  useEffect(() => {
-    fetchDocuments();
-  }, []);
+  // Add a state to track if we have any processing documents
+  const [hasProcessingDocuments, setHasProcessingDocuments] = useState(false);
 
-  const fetchDocuments = async () => {
-    setLoading(true);
+  // Redirect to login if not authenticated
+  useEffect(() => {
+    if (!loading && !user) {
+      router.push("/login");
+    }
+  }, [user, loading, router]);
+
+  useEffect(() => {
+    if (user) {
+      fetchDocuments();
+
+      // Set up polling for document status updates
+      const intervalId = setInterval(() => {
+        // Only poll if we have documents in processing state
+        if (hasProcessingDocuments) {
+          console.log("Polling for document status updates...");
+          fetchDocuments(false); // Pass false to not show loading state during polling
+        }
+      }, 5000); // Poll every 5 seconds
+
+      return () => clearInterval(intervalId); // Clean up on unmount
+    }
+  }, [hasProcessingDocuments, user]);
+
+  const fetchDocuments = async (showLoading = true) => {
+    if (showLoading) {
+      setIsLoading(true);
+    }
     setError(null);
 
     try {
       const response = await axios.get("/api/documents");
       setDocuments(response.data.documents);
+
+      // Check if we have any documents in processing state
+      const hasProcessing = response.data.documents.some(
+        (doc: Document) => doc.status === "processing"
+      );
+      setHasProcessingDocuments(hasProcessing);
     } catch (err) {
       console.error("Error fetching documents:", err);
-      setError("Failed to load documents. Please try again later.");
+      if (showLoading) {
+        setError("Failed to load documents. Please try again later.");
+      }
     } finally {
-      setLoading(false);
+      if (showLoading) {
+        setIsLoading(false);
+      }
     }
+  };
+
+  // Add a separate handler for the Try Again button
+  const handleTryAgain = () => {
+    fetchDocuments(true);
   };
 
   const handleDelete = async (id: string) => {
@@ -129,20 +174,39 @@ export default function DocumentsPage() {
     }
   };
 
+  // If loading authentication, show loading spinner
+  if (loading) {
+    return (
+      <div className="flex justify-center items-center min-h-screen">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary-600"></div>
+      </div>
+    );
+  }
+
+  // If not authenticated, don't render anything (will redirect)
+  if (!user) {
+    return null;
+  }
+
   return (
     <div className="container mx-auto px-4 py-12">
       <div className="max-w-5xl mx-auto">
-        <div className="mb-8">
-          <Link href="/" className="text-primary-600 hover:text-primary-800">
-            &larr; Back to Home
+        <div className="mb-8 flex justify-between items-center">
+          <div>
+            <Link href="/" className="text-primary-600 hover:text-primary-800">
+              &larr; Back to Home
+            </Link>
+            <h1 className="text-3xl font-bold mt-4">Manage Documents</h1>
+            <p className="text-gray-600">
+              View and manage your uploaded HR documents.
+            </p>
+          </div>
+          <Link href="/upload" className="btn btn-primary flex items-center">
+            <FaUpload className="mr-2" /> Upload New Documents
           </Link>
-          <h1 className="text-3xl font-bold mt-4">Manage Documents</h1>
-          <p className="text-gray-600">
-            View and manage your uploaded HR documents.
-          </p>
         </div>
 
-        {loading ? (
+        {isLoading ? (
           <div className="flex justify-center items-center h-64">
             <FaSpinner className="animate-spin text-4xl text-primary-500" />
           </div>
@@ -153,7 +217,7 @@ export default function DocumentsPage() {
               <p>{error}</p>
             </div>
             <button
-              onClick={fetchDocuments}
+              onClick={handleTryAgain}
               className="mt-2 text-red-700 hover:text-red-900 underline"
             >
               Try Again
@@ -233,7 +297,7 @@ export default function DocumentsPage() {
                           <button
                             onClick={() => handleReprocess(doc.id)}
                             disabled={reprocessLoading === doc.id}
-                            className="text-blue-600 hover:text-blue-900"
+                            className="text-primary-600 hover:text-primary-900"
                             title="Reprocess document"
                           >
                             {reprocessLoading === doc.id ? (
