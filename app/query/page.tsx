@@ -2,12 +2,11 @@
 
 import { useState, useRef, useEffect } from "react";
 import axios from "axios";
-import { FaSearch, FaSpinner, FaBook } from "react-icons/fa";
+import { FaSearch, FaSpinner } from "react-icons/fa";
 import ReactMarkdown from "react-markdown";
 import { useUser } from "@/context/UserContext";
 import { useRouter } from "next/navigation";
 import { createChat } from "@/lib/chatActions";
-import Link from "next/link";
 
 type Message = {
   id?: string;
@@ -171,17 +170,7 @@ export default function QueryPage() {
         <div className="mb-6 flex justify-between items-center">
           <div>
             <h1 className="text-2xl font-bold">New Conversation</h1>
-            <p className="text-gray-600">
-              Ask questions about your uploaded HR documents and get accurate
-              answers powered by Gemini 2.0 Flash.
-            </p>
           </div>
-          <Link
-            href="/documents"
-            className="bg-green-600 hover:bg-green-700 text-white py-2 px-4 rounded flex items-center"
-          >
-            <FaBook className="mr-2" /> Documents
-          </Link>
         </div>
 
         <div className="bg-white rounded-lg shadow-md overflow-hidden">
